@@ -24,6 +24,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 import os
 import json
 import argparse
+import re
+
 
 from nirjas.languages import *  # noqa
 from nirjas.classifier.comment_classifier import CommentClassifier
@@ -159,6 +161,9 @@ def scan_the_file(file):
 
     return eval(func)(file)
 
+
+SPDX_PATTERN = re.compile(r"SPDX-License-Identifier\s*:\s*([A-Za-z0-9\.\-\+]+)")
+
 def classify_comments(scan_result: dict) -> dict:
     """
     Optional hook to classify extracted comments.
@@ -166,12 +171,24 @@ def classify_comments(scan_result: dict) -> dict:
     """
     def classify_block(block):
         text = block.get("comment", "")
+        #RULE 1:SPDX DETECTION
+        match = SPDX_PATTERN.search(text)
+        if match:
+          block["classification"] = "LICENSE"
+          block["confidence"] = 1.0
+          block["license_id"] = match.group(1)
+          return block
+
+        #RULE 2: EMPTY
         if not text.strip():
             block["classification"] = "UNKNOWN"
             block["confidence"] = 0.0
             return block
 
+        #ML MODEL
         label, confidence = _classifier.predict(text)
+        if(confidence<0.6):
+            label="UNKNOWN"
         block["classification"] = label
         block["confidence"] = round(confidence, 3)
         return block
