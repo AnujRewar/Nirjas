@@ -7,6 +7,8 @@ exclude nirjas/languages/tests*
 
 include LICENSE
 
+recursive-include nirjas/classifier *.pkl
+
 prune .git
 prune venv
 prune .venv
