@@ -26,6 +26,8 @@ import json
 import argparse
 
 from nirjas.languages import *  # noqa
+from nirjas.classifier.comment_classifier import CommentClassifier
+_classifier = CommentClassifier()
 
 
 class NotSupportedExtension(Exception):
@@ -157,6 +159,39 @@ def scan_the_file(file):
 
     return eval(func)(file)
 
+def classify_comments(scan_result: dict) -> dict:
+    """
+    Optional hook to classify extracted comments.
+    Default: If no output return input unchanged
+    """
+    def classify_block(block):
+        text = block.get("comment", "")
+        if not text.strip():
+            block["classification"] = "UNKNOWN"
+            block["confidence"] = 0.0
+            return block
+
+        label, confidence = _classifier.predict(text)
+        block["classification"] = label
+        block["confidence"] = round(confidence, 3)
+        return block
+
+    # Single-line comments
+    scan_result["single_line_comment"] = [
+        classify_block(c) for c in scan_result.get("single_line_comment", [])
+    ]
+
+    # Continued single-line comments
+    scan_result["cont_single_line_comment"] = [
+        classify_block(c) for c in scan_result.get("cont_single_line_comment", [])
+    ]
+
+    # Multi-line comments (MOST IMPORTANT for licenses)
+    scan_result["multi_line_comment"] = [
+        classify_block(c) for c in scan_result.get("multi_line_comment", [])
+    ]
+
+    return scan_result
 
 def file_runner(file, type="dictionary"):
     """
@@ -169,16 +204,20 @@ def file_runner(file, type="dictionary"):
     """
     result = []
     if os.path.isfile(file):
-        result = scan_the_file(file).get_dict()
+        scan = scan_the_file(file).get_dict()
+        scan = classify_comments(scan)
+        result = scan
     elif os.path.isdir(file):
         for root, _, files in os.walk(file, followlinks=True):
             for scanfile in files:
                 file_to_scan = os.path.join(root, scanfile)
                 try:
                     if os.path.isfile(file_to_scan):
-                        result.append(scan_the_file(file_to_scan).get_dict())
+                        scan = scan_the_file(file_to_scan).get_dict()
+                        scan = classify_comments(scan)
+                        result.append(scan)
                 except Exception:
-                    continue
+                    continue 
     if type == "json":
         return json.dumps(result, sort_keys=False, indent=4)
     return result

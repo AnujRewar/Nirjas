@@ -52,6 +52,7 @@ setup(
     keywords='Nirjas,Code Comment, Comment Extractor, Code Comment Extractor,' +
              ' Source Code Extractor, Source Extractor',
     packages=find_packages(),
+    include_package_data=True,
     python_requires=">=3",
     entry_points={
         'console_scripts': [
